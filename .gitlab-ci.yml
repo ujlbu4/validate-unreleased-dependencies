@@ -1,0 +1,122 @@
+image: node:dubnium-slim
+
+services:
+  - docker:dind
+
+include:
+  - project: yourltd/misc/ops
+    ref: master
+    file: cicd-includes/global-default-variables.yml
+  - project: yourltd/misc/ops
+    ref: master
+    file: cicd-includes/semantic-release.yml
+  - template: Code-Quality.gitlab-ci.yml
+  - template: SAST.gitlab-ci.yml
+  - template: Dependency-Scanning.gitlab-ci.yml
+
+variables:
+  SEMANTIC_RELEASE_PACKAGE: Validate .NET packages dependencies
+
+stages:
+  - test
+  - release
+  - publish
+
+
+
+### TEMPLATES
+
+.setup_npm_template: 
+  - &setup_npm
+    echo "registry=http://${REGISTRY_URL}" > ~/.npmrc;
+    echo "//${REGISTRY_URL}:_authToken=${NPM_API_KEY}" >> ~/.npmrc;
+    npm config list;
+    cat ~/.npmrc;
+    env;
+
+
+
+# STEAGES
+
+tests:
+  stage: test 
+  script:
+    - npm install
+    - npm run test-with-coverage
+  artifacts:
+    reports:
+      cobertura: coverage/cobertura-coverage.xml
+  coverage:
+    '/Statements.*?(\d+(?:\.\d+)?)%/'
+  except:
+    refs:
+      - tags
+    variables:
+      - $CI_COMMIT_TITLE =~ /^RELEASE:.+$/
+  tags: ["docker"]
+
+
+code_quality: # merged with included CodeQuality Template
+  when: manual
+  except:
+    variables:
+      - $CI_COMMIT_TITLE =~ /^RELEASE:.+$/
+  tags: ["docker"]
+
+
+sast: # merged with included SAST Template
+  # Static Application Security Testing
+  variables:
+    GITLAB_FEATURES: sast
+  when: manual
+  except:
+    variables:
+      - $CI_COMMIT_TITLE =~ /^RELEASE:.+$/
+  tags: ["docker"]
+
+
+dependency_scanning: # merged with included Dependency-Scanning Template
+  variables:
+    GITLAB_FEATURES: dependency_scanning
+  when: manual
+  except:
+    variables:
+      - $CI_COMMIT_TITLE =~ /^RELEASE:.+$/
+  tags: ["docker"]
+
+
+release:
+  extends: .semantic release # from included templates
+  stage: release
+  rules:
+    - if: $CI_COMMIT_BRANCH == 'master' && $CI_COMMIT_TITLE !~ /^RELEASE:.+$/
+      when: on_success
+
+
+publish dev:
+  stage: publish
+  variables:
+    REGISTRY_URL: ${REGISTRY_NPM_SNAPSHOT}
+  before_script:
+    - *setup_npm
+  script:
+    - npm version prerelease --preid=${CI_COMMIT_REF_SLUG}.${CI_JOB_ID};
+    - npm publish . --access public
+  only:
+    - branches
+  except:
+    - master  # for master uses tags (look below)
+  tags: ["docker"]
+
+
+publish stable:
+  stage: publish
+  variables:
+    REGISTRY_URL: ${REGISTRY_NPM_RELEASE}
+  before_script:
+    - *setup_npm
+  script:
+    - npm publish . --access public
+  only:
+    - tags
+  tags: ["docker"]

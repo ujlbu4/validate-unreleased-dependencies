@@ -1,0 +1,30 @@
+{
+  "name": "validate-unreleased-dependencies",
+  "version": "0.1.0",
+  "description": "Validate .NET packages dependencies via .net packages.lock.json files",
+  "main": "./src/main.js",
+  "dependencies": {
+    "semver": "^7.3.2",
+    "yargs": "^15.3.1"
+  },
+  "devDependencies": {
+    "chai": "^4.2.0",
+    "cz-conventional-changelog": "^3.2.0",
+    "mocha": "^7.1.2",
+    "mocha-junit-reporter": "^1.23.3",
+    "nyc": "^15.0.1"
+  },
+  "scripts": {
+    "test": "mocha --reporter spec",
+    "test-with-coverage": "nyc --reporter=cobertura --reporter=html --reporter=text --reporter text-summary mocha --timeout=10000",
+    "test-ci-gitlab12.7": "mocha test --reporter mocha-junit-reporter"
+  },
+  "bin": {
+    "validate-unreleased-dependencies": "./src/main.js"
+  },
+  "config": {
+    "commitizen": {
+      "path": "./node_modules/cz-conventional-changelog"
+    }
+  }
+}
